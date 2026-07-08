@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cashier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cashier">
+<meta name="theme-color" content="#7c2d12">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23c2410c'/%3E%3Ctext x='90' y='128' font-size='112' font-family='Arial, sans-serif' font-weight='700' fill='white' text-anchor='middle'%3E%24%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f4ede4;
+    --panel:#ffffff;
+    --ink:#2a1d14;
+    --muted:#8a7566;
+    --line:#e6dccd;
+    --accent:#c2410c;
+    --accent-dark:#9a3412;
+    --accent-soft:#fde8d8;
+    --good:#15803d;
+    --good-dark:#166534;
+    --bad:#b91c1c;
+    --bad-dark:#7f1d1d;
+    --sutd:#1d4ed8;
+    --sutd-soft:#dbeafe;
+    --pub:#7c2d12;
+    --pub-soft:#fde8d8;
+  }
+  *{ box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    overscroll-behavior:none;
+  }
+  button{ font-family:inherit; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  #app{
+    display:flex; flex-direction:column; height:100vh; height:100dvh;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+    padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; background:var(--pub); color:#fff; flex:0 0 auto;
+  }
+  header h1{ margin:0; font-size:20px; font-weight:700; letter-spacing:0.3px; }
+  #logBtn{
+    background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
+    border-radius:10px; padding:10px 16px; font-size:15px; font-weight:600; cursor:pointer;
+  }
+  #logBtn:active{ background:rgba(255,255,255,0.3); }
+
+  #main{ flex:1 1 auto; display:flex; min-height:0; }
+  #left{
+    flex:1 1 62%; overflow-y:auto; padding:16px; -webkit-overflow-scrolling:touch;
+  }
+  #right{
+    flex:0 0 380px; max-width:42%; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+
+  .toggleRow{ display:flex; gap:12px; margin-bottom:16px; }
+  .toggleGroup{ flex:1; display:flex; background:var(--panel); border-radius:14px; padding:6px; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  .toggleBtn{
+    flex:1; border:none; border-radius:10px; padding:16px 8px; font-size:17px; font-weight:700;
+    background:transparent; color:var(--muted); cursor:pointer;
+  }
+  .toggleBtn.active.pub{ background:var(--pub); color:#fff; }
+  .toggleBtn.active.sutd{ background:var(--sutd); color:#fff; }
+  .toggleBtn.active.here{ background:var(--good); color:#fff; }
+  .toggleBtn.active.away{ background:var(--accent); color:#fff; }
+
+  .section{ margin-bottom:22px; }
+  .section h2{
+    font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);
+    margin:0 0 10px 2px; font-weight:700;
+  }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px; }
+
+  .item{
+    background:var(--panel); border:2px solid var(--line); border-radius:16px; padding:14px;
+    display:flex; flex-direction:column; gap:8px; box-shadow:0 1px 2px rgba(0,0,0,0.06);
+  }
+  .item.active{ border-color:var(--accent); background:var(--accent-soft); }
+  .item .name{ font-size:16px; font-weight:700; line-height:1.25; min-height:40px; }
+  .item .price{ font-size:15px; color:var(--muted); font-weight:600; }
+  .item.active .price{ color:var(--accent-dark); }
+  .stepper{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px; }
+  .stepBtn{
+    width:44px; height:44px; border-radius:12px; border:none; font-size:22px; font-weight:800;
+    background:var(--line); color:var(--ink); cursor:pointer; line-height:1;
+  }
+  .stepBtn.plus{ background:var(--accent); color:#fff; }
+  .stepBtn:active{ opacity:0.7; }
+  .stepBtn:disabled{ opacity:0.35; }
+  .qty{ flex:1; text-align:center; font-size:20px; font-weight:800; }
+
+  #right header, .rightHead{
+    padding:16px 18px; border-bottom:1px solid var(--line); flex:0 0 auto;
+  }
+  .rightHead h2{ margin:0 0 8px 0; font-size:16px; font-weight:800; }
+  .badges{ display:flex; gap:8px; flex-wrap:wrap; }
+  .badge{ font-size:12px; font-weight:700; padding:5px 10px; border-radius:20px; }
+  .badge.pub{ background:var(--pub-soft); color:var(--pub); }
+  .badge.sutd{ background:var(--sutd-soft); color:var(--sutd); }
+  .badge.here{ background:#dcfce7; color:var(--good-dark); }
+  .badge.away{ background:var(--accent-soft); color:var(--accent-dark); }
+
+  #orderList{ flex:1 1 auto; overflow-y:auto; padding:8px 14px; -webkit-overflow-scrolling:touch; }
+  .empty{ color:var(--muted); text-align:center; padding:40px 10px; font-size:15px; }
+  .row{
+    display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line);
+  }
+  .row .rname{ flex:1; font-size:15px; font-weight:600; }
+  .row .rmeta{ font-size:12px; color:var(--muted); }
+  .row .rtotal{ font-size:15px; font-weight:700; width:64px; text-align:right; }
+  .row .rstep{ display:flex; align-items:center; gap:4px; }
+  .miniBtn{
+    width:30px; height:30px; border-radius:8px; border:none; background:var(--line); font-weight:800;
+    font-size:16px; cursor:pointer; color:var(--ink);
+  }
+  .rqty{ width:22px; text-align:center; font-weight:700; font-size:14px; }
+  .removeBtn{
+    width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:var(--bad);
+    font-size:18px; font-weight:800; cursor:pointer;
+  }
+
+  #totals{ flex:0 0 auto; padding:14px 18px; border-top:1px solid var(--line); }
+  .trow{ display:flex; justify-content:space-between; font-size:14px; color:var(--muted); padding:3px 0; }
+  .trow.total{ font-size:22px; font-weight:800; color:var(--ink); padding-top:8px; }
+
+  #actions{ flex:0 0 auto; display:flex; gap:10px; padding:14px 18px calc(14px + env(safe-area-inset-bottom)); }
+  .bigBtn{
+    flex:1; border:none; border-radius:14px; padding:18px 8px; font-size:16px; font-weight:800;
+    cursor:pointer; color:#fff;
+  }
+  .bigBtn.void{ background:var(--bad); }
+  .bigBtn.void:active{ background:var(--bad-dark); }
+  .bigBtn.complete{ background:var(--good); }
+  .bigBtn.complete:active{ background:var(--good-dark); }
+  .bigBtn:disabled{ opacity:0.4; }
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center;
+    z-index:50; padding:20px;
+  }
+  .overlay.show{ display:flex; }
+  .modal{
+    background:var(--panel); border-radius:18px; max-width:520px; width:100%; max-height:80vh;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .modalHead{ padding:16px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .modalHead h2{ margin:0; font-size:18px; }
+  .modalHead button{ border:none; background:var(--line); border-radius:10px; padding:8px 14px; font-weight:700; cursor:pointer; }
+  .modalBody{ overflow-y:auto; padding:10px 20px; }
+  .logRow{ padding:10px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:10px; }
+  .logRow .lmeta{ font-size:12px; color:var(--muted); }
+  .logRow .ltotal{ font-weight:800; }
+  .modalFoot{ padding:14px 20px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .clearLogBtn{ background:var(--bad); color:#fff; border:none; border-radius:10px; padding:12px 16px; font-weight:700; cursor:pointer; }
+
+  #toast{
+    position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:14px 22px; border-radius:14px; font-weight:700;
+    font-size:15px; opacity:0; pointer-events:none; transition:opacity 0.25s, transform 0.25s; z-index:60;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>F&amp;B Cashier</h1>
+    <button id="logBtn">Daily Log</button>
+  </header>
+
+  <div id="main">
+    <div id="left">
+      <div class="toggleRow">
+        <div class="toggleGroup">
+          <button class="toggleBtn pub" data-type="public">Public</button>
+          <button class="toggleBtn sutd" data-type="sutd">SUTD</button>
+        </div>
+        <div class="toggleGroup">
+          <button class="toggleBtn here" data-dine="here">Here</button>
+          <button class="toggleBtn away" data-dine="takeaway">Take Away</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Mains</h2>
+        <div class="grid" id="grid-mains"></div>
+      </div>
+      <div class="section">
+        <h2>Add-ons</h2>
+        <div class="grid" id="grid-addons"></div>
+      </div>
+      <div class="section">
+        <h2>Dessert</h2>
+        <div class="grid" id="grid-dessert"></div>
+      </div>
+    </div>
+
+    <div id="right">
+      <div class="rightHead">
+        <h2>Current Order</h2>
+        <div class="badges">
+          <span class="badge pub" id="badgeType">Public</span>
+          <span class="badge here" id="badgeDine">Here</span>
+        </div>
+      </div>
+      <div id="orderList"></div>
+      <div id="totals">
+        <div class="trow"><span>Subtotal</span><span id="tSubtotal">$0.00</span></div>
+        <div class="trow" id="tSurchargeRow" style="display:none"><span>Takeaway</span><span id="tSurcharge">$0.20</span></div>
+        <div class="trow total"><span>Total</span><span id="tTotal">$0.00</span></div>
+      </div>
+      <div id="actions">
+        <button class="bigBtn void" id="voidBtn">Void Order</button>
+        <button class="bigBtn complete" id="completeBtn">Complete Order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="logOverlay">
+  <div class="modal">
+    <div class="modalHead">
+      <h2>Daily Log</h2>
+      <button id="closeLogBtn">Close</button>
+    </div>
+    <div class="modalBody" id="logBody"></div>
+    <div class="modalFoot">
+      <div>
+        <div style="font-size:13px;color:var(--muted);font-weight:700;" id="logCount">0 orders</div>
+        <div style="font-size:20px;font-weight:800;" id="logTotal">$0.00</div>
+      </div>
+      <button class="clearLogBtn" id="clearLogBtn">Clear Log</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="confirmOverlay">
+  <div class="modal" style="max-width:380px">
+    <div class="modalHead">
+      <h2 id="confirmTitle">Are you sure?</h2>
+    </div>
+    <div class="modalBody" id="confirmBody" style="padding:18px 20px;font-size:15px;color:var(--muted)"></div>
+    <div class="modalFoot">
+      <button class="clearLogBtn" id="confirmCancelBtn" style="background:var(--line);color:var(--ink)">Cancel</button>
+      <button class="clearLogBtn" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var MENU = {
+    mains: [
+      { id:"nasi_lemak",  name:"Nasi Lemak",              sutd:350, pub:400 },
+      { id:"curry_rice",  name:"Curry Rice / White Rice", sutd:350, pub:400 },
+      { id:"fried_rice",  name:"Fried Rice",               sutd:350, pub:400 },
+      { id:"herbal_soup", name:"Herbal Soup Set",          sutd:350, pub:400 },
+      { id:"beehoon",     name:"Beehoon",                  sutd:300, pub:350 }
+    ],
+    addons: [
+      { id:"addon_regular", name:"Add-on (Regular)", sutd:80, pub:100 },
+      { id:"addon_small",   name:"Add-on (Small)",   sutd:30, pub:40 }
+    ],
+    dessert: [
+      { id:"beancurd", name:"Beancurd", sutd:180, pub:230 }
+    ]
+  };
+
+  var TAKEAWAY_SURCHARGE = 20;
+  var LOG_KEY = "cashierDailyLog";
+
+  var MENU_MAP = {};
+  Object.keys(MENU).forEach(function(cat){
+    MENU[cat].forEach(function(item){ MENU_MAP[item.id] = item; });
+  });
+
+  var state = { customerType:"public", dining:"here", cart:{} };
+
+  function fmt(cents){ return "$" + (cents/100).toFixed(2); }
+  function priceOf(item){ return state.customerType === "sutd" ? item.sutd : item.pub; }
+
+  function cartCount(){
+    var n = 0;
+    Object.keys(state.cart).forEach(function(id){ n += state.cart[id]; });
+    return n;
+  }
+
+  function computeSubtotal(){
+    var sum = 0;
+    Object.keys(state.cart).forEach(function(id){
+      var item = MENU_MAP[id];
+      sum += priceOf(item) * state.cart[id];
+    });
+    return sum;
+  }
+
+  function computeSurcharge(subtotal){
+    return (state.dining === "takeaway" && subtotal > 0) ? TAKEAWAY_SURCHARGE : 0;
+  }
+
+  function buildGrids(){
+    Object.keys(MENU).forEach(function(cat){
+      var grid = document.getElementById("grid-" + cat);
+      grid.innerHTML = "";
+      MENU[cat].forEach(function(item){
+        var card = document.createElement("div");
+        card.className = "item";
+        card.dataset.id = item.id;
+        card.innerHTML =
+          '<div class="name">' + item.name + '</div>' +
+          '<div class="price"></div>' +
+          '<div class="stepper">' +
+            '<button class="stepBtn minus">-</button>' +
+            '<div class="qty">0</div>' +
+            '<button class="stepBtn plus">+</button>' +
+          '</div>';
+        card.querySelector(".minus").addEventListener("click", function(){ decrement(item.id); });
+        card.querySelector(".plus").addEventListener("click", function(){ increment(item.id); });
+        grid.appendChild(card);
+      });
+    });
+  }
+
+  function increment(id){
+    state.cart[id] = (state.cart[id] || 0) + 1;
+    render();
+  }
+  function decrement(id){
+    if(!state.cart[id]) return;
+    state.cart[id] -= 1;
+    if(state.cart[id] <= 0) delete state.cart[id];
+    render();
+  }
+  function removeLine(id){
+    delete state.cart[id];
+    render();
+  }
+
+  function render(){
+    Object.keys(MENU_MAP).forEach(function(id){
+      var item = MENU_MAP[id];
+      var card = document.querySelector('.item[data-id="' + id + '"]');
+      if(!card) return;
+      var qty = state.cart[id] || 0;
+      card.classList.toggle("active", qty > 0);
+      card.querySelector(".price").textContent = fmt(priceOf(item));
+      card.querySelector(".qty").textContent = qty;
+      card.querySelector(".minus").disabled = qty === 0;
+    });
+
+    document.querySelectorAll(".toggleBtn.pub, .toggleBtn.sutd").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.type === state.customerType);
+    });
+    document.querySelectorAll(".toggleBtn.here, .toggleBtn.away").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.dine === state.dining);
+    });
+
+    var badgeType = document.getElementById("badgeType");
+    badgeType.textContent = state.customerType === "sutd" ? "SUTD" : "Public";
+    badgeType.className = "badge " + (state.customerType === "sutd" ? "sutd" : "pub");
+
+    var badgeDine = document.getElementById("badgeDine");
+    badgeDine.textContent = state.dining === "takeaway" ? "Take Away" : "Here";
+    badgeDine.className = "badge " + (state.dining === "takeaway" ? "away" : "here");
+
+    var orderList = document.getElementById("orderList");
+    var ids = Object.keys(state.cart);
+    if(ids.length === 0){
+      orderList.innerHTML = '<div class="empty">No items yet.<br>Tap items on the left to add.</div>';
+    } else {
+      orderList.innerHTML = "";
+      ids.forEach(function(id){
+        var item = MENU_MAP[id];
+        var qty = state.cart[id];
+        var unit = priceOf(item);
+        var row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML =
+          '<div style="flex:1">' +
+            '<div class="rname">' + item.name + '</div>' +
+            '<div class="rmeta">' + fmt(unit) + ' each</div>' +
+          '</div>' +
+          '<div class="rstep">' +
+            '<button class="miniBtn minus">-</button>' +
+            '<div class="rqty">' + qty + '</div>' +
+            '<button class="miniBtn plus">+</button>' +
+          '</div>' +
+          '<div class="rtotal">' + fmt(unit * qty) + '</div>' +
+          '<button class="removeBtn">&times;</button>';
+        row.querySelector(".minus").addEventListener("click", function(){ decrement(id); });
+        row.querySelector(".plus").addEventListener("click", function(){ increment(id); });
+        row.querySelector(".removeBtn").addEventListener("click", function(){ removeLine(id); });
+        orderList.appendChild(row);
+      });
+    }
+
+    var subtotal = computeSubtotal();
+    var surcharge = computeSurcharge(subtotal);
+    var total = subtotal + surcharge;
+
+    document.getElementById("tSubtotal").textContent = fmt(subtotal);
+    var surchargeRow = document.getElementById("tSurchargeRow");
+    if(surcharge > 0){
+      surchargeRow.style.display = "flex";
+      document.getElementById("tSurcharge").textContent = fmt(surcharge);
+    } else {
+      surchargeRow.style.display = "none";
+    }
+    document.getElementById("tTotal").textContent = fmt(total);
+
+    var hasItems = ids.length > 0;
+    document.getElementById("voidBtn").disabled = !hasItems;
+    document.getElementById("completeBtn").disabled = !hasItems;
+  }
+
+  function resetOrder(){
+    state.cart = {};
+    state.customerType = "public";
+    state.dining = "here";
+    render();
+  }
+
+  function voidOrder(){
+    if(cartCount() === 0) return;
+    confirmModal("Void this order?", "All items will be cleared. This cannot be undone.", function(){
+      resetOrder();
+      showToast("Order voided");
+    });
+  }
+
+  function completeOrder(){
+    if(cartCount() === 0) return;
+    var subtotal = computeSubtotal();
+    var surcharge = computeSurcharge(subtotal);
+    var total = subtotal + surcharge;
+
+    var items = Object.keys(state.cart).map(function(id){
+      var item = MENU_MAP[id];
+      return { name:item.name, qty:state.cart[id], unit:priceOf(item) };
+    });
+
+    var record = {
+      time: new Date().toISOString(),
+      customerType: state.customerType,
+      dining: state.dining,
+      items: items,
+      subtotal: subtotal,
+      surcharge: surcharge,
+      total: total
+    };
+
+    var log = loadLog();
+    log.push(record);
+    saveLog(log);
+
+    showToast("Order complete - Total " + fmt(total));
+    resetOrder();
+  }
+
+  function loadLog(){
+    try{
+      var raw = localStorage.getItem(LOG_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  function saveLog(log){
+    try{ localStorage.setItem(LOG_KEY, JSON.stringify(log)); }catch(e){}
+  }
+
+  function renderLog(){
+    var log = loadLog();
+    var body = document.getElementById("logBody");
+    if(log.length === 0){
+      body.innerHTML = '<div class="empty">No orders logged yet.</div>';
+    } else {
+      body.innerHTML = "";
+      log.slice().reverse().forEach(function(rec){
+        var d = new Date(rec.time);
+        var timeStr = d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+        var typeStr = rec.customerType === "sutd" ? "SUTD" : "Public";
+        var dineStr = rec.dining === "takeaway" ? "Take Away" : "Here";
+        var itemsStr = rec.items.map(function(it){ return it.qty + "x " + it.name; }).join(", ");
+        var row = document.createElement("div");
+        row.className = "logRow";
+        row.innerHTML =
+          '<div>' +
+            '<div>' + timeStr + ' &middot; ' + typeStr + ' &middot; ' + dineStr + '</div>' +
+            '<div class="lmeta">' + itemsStr + '</div>' +
+          '</div>' +
+          '<div class="ltotal">' + fmt(rec.total) + '</div>';
+        body.appendChild(row);
+      });
+    }
+    var totalCents = log.reduce(function(s, r){ return s + r.total; }, 0);
+    document.getElementById("logCount").textContent = log.length + (log.length === 1 ? " order" : " orders");
+    document.getElementById("logTotal").textContent = fmt(totalCents);
+  }
+
+  function confirmModal(title, body, onConfirm){
+    document.getElementById("confirmTitle").textContent = title;
+    document.getElementById("confirmBody").textContent = body;
+    var overlay = document.getElementById("confirmOverlay");
+    overlay.classList.add("show");
+    var okBtn = document.getElementById("confirmOkBtn");
+    var cancelBtn = document.getElementById("confirmCancelBtn");
+    function cleanup(){
+      overlay.classList.remove("show");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+    }
+    function onOk(){ cleanup(); onConfirm(); }
+    function onCancel(){ cleanup(); }
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+  }
+
+  var toastTimer = null;
+  function showToast(msg){
+    var toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove("show"); }, 2200);
+  }
+
+  document.querySelectorAll(".toggleBtn.pub, .toggleBtn.sutd").forEach(function(btn){
+    btn.addEventListener("click", function(){ state.customerType = btn.dataset.type; render(); });
+  });
+  document.querySelectorAll(".toggleBtn.here, .toggleBtn.away").forEach(function(btn){
+    btn.addEventListener("click", function(){ state.dining = btn.dataset.dine; render(); });
+  });
+
+  document.getElementById("voidBtn").addEventListener("click", voidOrder);
+  document.getElementById("completeBtn").addEventListener("click", completeOrder);
+
+  document.getElementById("logBtn").addEventListener("click", function(){
+    renderLog();
+    document.getElementById("logOverlay").classList.add("show");
+  });
+  document.getElementById("closeLogBtn").addEventListener("click", function(){
+    document.getElementById("logOverlay").classList.remove("show");
+  });
+  document.getElementById("clearLogBtn").addEventListener("click", function(){
+    confirmModal("Clear the daily log?", "This cannot be undone.", function(){
+      saveLog([]);
+      renderLog();
+    });
+  });
+
+  document.addEventListener("touchmove", function(e){
+    if(!e.target.closest("#orderList, #left, .modalBody")){ e.preventDefault(); }
+  }, { passive:false });
+
+  buildGrids();
+  render();
+})();
+</script>
+</body>
+</html>
