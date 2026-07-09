@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cashier Stats</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stats">
+<meta name="theme-color" content="#7c2d12">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23c2410c'/%3E%3Ctext x='90' y='128' font-size='112' font-family='Arial, sans-serif' font-weight='700' fill='white' text-anchor='middle'%3E%24%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f4ede4; --panel:#ffffff; --ink:#2a1d14; --muted:#8a7566; --line:#e6dccd;
+    --accent:#c2410c; --accent-dark:#9a3412; --accent-soft:#fde8d8;
+    --good:#15803d; --pub:#7c2d12;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom:40px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; background:var(--pub); color:#fff; gap:12px; flex-wrap:wrap;
+  }
+  header h1{ margin:0; font-size:20px; }
+  .headBtns{ display:flex; gap:8px; }
+  .headBtn{
+    background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
+    border-radius:10px; padding:9px 14px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none;
+  }
+  #status{ padding:8px 20px; font-size:13px; color:var(--muted); }
+  #content{ padding:0 20px; max-width:960px; margin:0 auto; }
+
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; margin:16px 0; }
+  .card{ background:var(--panel); border-radius:16px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  .card .label{ font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:700; }
+  .card .value{ font-size:28px; font-weight:800; margin-top:6px; }
+  .card .sub{ font-size:13px; color:var(--muted); margin-top:2px; }
+
+  .section{ background:var(--panel); border-radius:16px; padding:18px; margin:16px 0; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  .section h2{ margin:0 0 12px 0; font-size:16px; }
+
+  .topItem{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:15px; }
+  .topItem:last-child{ border-bottom:none; }
+  .topItem .n{ font-weight:700; }
+  .topItem .c{ color:var(--muted); }
+
+  table{ width:100%; border-collapse:collapse; font-size:14px; }
+  th{ text-align:left; color:var(--muted); font-size:12px; text-transform:uppercase; padding:6px 8px; border-bottom:2px solid var(--line); }
+  td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr:last-child td{ border-bottom:none; }
+  .badge{ font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; background:var(--accent-soft); color:var(--accent-dark); white-space:nowrap; }
+
+  .empty{ text-align:center; color:var(--muted); padding:30px; }
+  .error{ background:#fee2e2; color:#991b1b; padding:14px 18px; border-radius:12px; margin:16px 0; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sales Stats</h1>
+  <div class="headBtns">
+    <button class="headBtn" id="refreshBtn">Refresh</button>
+    <a class="headBtn" href="index.html">Back to Cashier</a>
+  </div>
+</header>
+<div id="status">Loading...</div>
+<div id="content"></div>
+
+<script>
+(function(){
+  "use strict";
+  var SYNC_ENDPOINT = "https://script.google.com/macros/s/AKfycbxuqzXU418CadzlueS0xqwL_6Cl05CRZxsma-DKB9SWhJiht881rDb9lftRPlkyhq7NIA/exec";
+
+  function fmt(dollars){ return "$" + Number(dollars).toFixed(2); }
+
+  function sameDay(a, b){
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function parseItems(str){
+    if(!str) return [];
+    return str.split(",").map(function(part){
+      part = part.trim();
+      var m = part.match(/^(\d+)x\s+(.*)$/i);
+      if(!m) return { qty:1, name:part };
+      return { qty: parseInt(m[1],10), name: m[2] };
+    });
+  }
+
+  function render(orders){
+    var statusEl = document.getElementById("status");
+    var content = document.getElementById("content");
+
+    if(orders.length === 0){
+      statusEl.textContent = "Last updated " + new Date().toLocaleTimeString();
+      content.innerHTML = '<div class="empty">No orders synced yet. Complete an order on the cashier to see stats here.</div>';
+      return;
+    }
+
+    var now = new Date();
+    var weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+
+    var todayTotal = 0, todayCount = 0, weekTotal = 0, weekCount = 0, allTotal = 0;
+    var itemTally = {};
+
+    orders.forEach(function(o){
+      var t = new Date(o.time);
+      allTotal += o.total;
+      if(sameDay(t, now)){ todayTotal += o.total; todayCount++; }
+      if(t >= weekAgo){ weekTotal += o.total; weekCount++; }
+      parseItems(o.items).forEach(function(it){
+        itemTally[it.name] = (itemTally[it.name] || 0) + it.qty;
+      });
+    });
+
+    var topItems = Object.keys(itemTally)
+      .map(function(name){ return { name:name, qty:itemTally[name] }; })
+      .sort(function(a,b){ return b.qty - a.qty; })
+      .slice(0, 8);
+
+    var recent = orders.slice().sort(function(a,b){ return new Date(b.time) - new Date(a.time); }).slice(0, 30);
+
+    statusEl.textContent = "Last updated " + new Date().toLocaleTimeString() + " · " + orders.length + " total orders synced";
+
+    var html = "";
+    html += '<div class="cards">';
+    html += '<div class="card"><div class="label">Today</div><div class="value">' + fmt(todayTotal) + '</div><div class="sub">' + todayCount + (todayCount===1?' order':' orders') + '</div></div>';
+    html += '<div class="card"><div class="label">Last 7 Days</div><div class="value">' + fmt(weekTotal) + '</div><div class="sub">' + weekCount + (weekCount===1?' order':' orders') + '</div></div>';
+    html += '<div class="card"><div class="label">All Time</div><div class="value">' + fmt(allTotal) + '</div><div class="sub">' + orders.length + (orders.length===1?' order':' orders') + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="section"><h2>Top Selling Items</h2>';
+    if(topItems.length === 0){
+      html += '<div class="empty">No items yet.</div>';
+    } else {
+      topItems.forEach(function(it){
+        html += '<div class="topItem"><span class="n">' + it.name + '</span><span class="c">' + it.qty + ' sold</span></div>';
+      });
+    }
+    html += '</div>';
+
+    html += '<div class="section"><h2>Recent Orders</h2>';
+    html += '<div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Type</th><th>Items</th><th>Total</th></tr></thead><tbody>';
+    recent.forEach(function(o){
+      var t = new Date(o.time);
+      var dateStr = t.toLocaleDateString([], {month:"short", day:"numeric"});
+      var timeStr = t.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+      var typeLabel = (o.customerType === "sutd" ? "SUTD" : "Public") + (o.dining === "takeaway" ? " · Take Away" : "");
+      html += '<tr><td>' + dateStr + '<br><span class="c" style="color:var(--muted)">' + timeStr + '</span></td>' +
+              '<td><span class="badge">' + typeLabel + '</span></td>' +
+              '<td>' + (o.items || "") + '</td>' +
+              '<td style="font-weight:700">' + fmt(o.total) + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+
+    content.innerHTML = html;
+  }
+
+  function load(){
+    document.getElementById("status").textContent = "Loading...";
+    fetch(SYNC_ENDPOINT)
+      .then(function(r){ return r.json(); })
+      .then(function(data){ render(data.orders || []); })
+      .catch(function(err){
+        document.getElementById("status").textContent = "";
+        document.getElementById("content").innerHTML = '<div class="error">Could not load stats. Check your connection and try refreshing.</div>';
+      });
+  }
+
+  document.getElementById("refreshBtn").addEventListener("click", load);
+  load();
+  setInterval(load, 30000);
+})();
+</script>
+</body>
+</html>

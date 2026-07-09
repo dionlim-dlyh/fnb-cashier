@@ -48,11 +48,13 @@
     padding:14px 20px; background:var(--pub); color:#fff; flex:0 0 auto;
   }
   header h1{ margin:0; font-size:20px; font-weight:700; letter-spacing:0.3px; }
-  #logBtn{
+  #logBtn, #statsLink{
     background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
     border-radius:10px; padding:10px 16px; font-size:15px; font-weight:600; cursor:pointer;
+    text-decoration:none; display:inline-flex; align-items:center;
   }
-  #logBtn:active{ background:rgba(255,255,255,0.3); }
+  #logBtn:active, #statsLink:active{ background:rgba(255,255,255,0.3); }
+  .headerBtns{ display:flex; gap:8px; }
 
   #main{ flex:1 1 auto; display:flex; min-height:0; }
   #left{
@@ -175,7 +177,10 @@
 <div id="app">
   <header>
     <h1>F&amp;B Cashier</h1>
-    <button id="logBtn">Daily Log</button>
+    <div class="headerBtns">
+      <a id="statsLink" href="stats.html">Stats</a>
+      <button id="logBtn">Daily Log</button>
+    </div>
   </header>
 
   <div id="main">
@@ -282,6 +287,18 @@
 
   var TAKEAWAY_SURCHARGE = 20;
   var LOG_KEY = "cashierDailyLog";
+  var SYNC_ENDPOINT = "https://script.google.com/macros/s/AKfycbxuqzXU418CadzlueS0xqwL_6Cl05CRZxsma-DKB9SWhJiht881rDb9lftRPlkyhq7NIA/exec";
+
+  function syncOrder(record){
+    if(!SYNC_ENDPOINT) return;
+    try{
+      fetch(SYNC_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(record)
+      }).catch(function(){});
+    }catch(e){}
+  }
 
   var MENU_MAP = {};
   Object.keys(MENU).forEach(function(cat){
@@ -466,6 +483,7 @@
     var log = loadLog();
     log.push(record);
     saveLog(log);
+    syncOrder(record);
 
     showToast("Order complete - Total " + fmt(total));
     resetOrder();
