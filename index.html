@@ -76,6 +76,20 @@
   .toggleBtn.active.here{ background:var(--good); color:#fff; }
   .toggleBtn.active.away{ background:var(--accent); color:#fff; }
 
+  .customAddCard{
+    width:100%; background:var(--panel); border:2px dashed var(--accent); border-radius:16px;
+    padding:16px; font-size:16px; font-weight:700; color:var(--accent-dark); cursor:pointer;
+  }
+  .customAddCard:active{ background:var(--accent-soft); }
+
+  .formLabel{ display:block; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:6px; }
+  .formInput{
+    width:100%; padding:12px; border:2px solid var(--line); border-radius:10px; font-size:16px;
+    margin-bottom:14px; box-sizing:border-box; font-family:inherit; -webkit-user-select:text; user-select:text;
+  }
+  .formInput:focus{ outline:none; border-color:var(--accent); }
+  .formError{ color:var(--bad); font-size:13px; margin-top:-6px; margin-bottom:10px; display:none; }
+
   .section{ margin-bottom:22px; }
   .section h2{
     font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);
@@ -197,6 +211,10 @@
       </div>
 
       <div class="section">
+        <button id="customItemBtn" class="customAddCard">+ Add Custom Item</button>
+      </div>
+
+      <div class="section">
         <h2>Mains</h2>
         <div class="grid" id="grid-mains"></div>
       </div>
@@ -262,6 +280,25 @@
   </div>
 </div>
 
+<div class="overlay" id="customOverlay">
+  <div class="modal" style="max-width:380px">
+    <div class="modalHead">
+      <h2>Add Custom Item</h2>
+    </div>
+    <div class="modalBody" style="padding:18px 20px">
+      <label class="formLabel" for="customNameInput">Item Name</label>
+      <input type="text" id="customNameInput" class="formInput" placeholder="e.g. Extra Egg" maxlength="40">
+      <label class="formLabel" for="customPriceInput">Price ($)</label>
+      <input type="number" id="customPriceInput" class="formInput" placeholder="0.00" step="0.10" min="0" inputmode="decimal">
+      <div class="formError" id="customError"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="clearLogBtn" id="customCancelBtn" style="background:var(--line);color:var(--ink)">Cancel</button>
+      <button class="clearLogBtn" id="customAddBtn" style="background:var(--good)">Add to Order</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -305,10 +342,17 @@
     MENU[cat].forEach(function(item){ MENU_MAP[item.id] = item; });
   });
 
-  var state = { customerType:"public", dining:"here", cart:{} };
+  var state = { customerType:"public", dining:"here", cart:{}, customInfo:{} };
 
   function fmt(cents){ return "$" + (cents/100).toFixed(2); }
   function priceOf(item){ return state.customerType === "sutd" ? item.sutd : item.pub; }
+
+  function getItemInfo(key){
+    var menuItem = MENU_MAP[key];
+    if(menuItem) return { name: menuItem.name, price: priceOf(menuItem), custom:false };
+    var custom = state.customInfo[key];
+    return { name: custom.name, price: custom.price, custom:true };
+  }
 
   function cartCount(){
     var n = 0;
@@ -319,8 +363,7 @@
   function computeSubtotal(){
     var sum = 0;
     Object.keys(state.cart).forEach(function(id){
-      var item = MENU_MAP[id];
-      sum += priceOf(item) * state.cart[id];
+      sum += getItemInfo(id).price * state.cart[id];
     });
     return sum;
   }
@@ -359,11 +402,24 @@
   function decrement(id){
     if(!state.cart[id]) return;
     state.cart[id] -= 1;
-    if(state.cart[id] <= 0) delete state.cart[id];
+    if(state.cart[id] <= 0){
+      delete state.cart[id];
+      delete state.customInfo[id];
+    }
     render();
   }
   function removeLine(id){
     delete state.cart[id];
+    delete state.customInfo[id];
+    render();
+  }
+
+  function addCustomItem(name, priceCents){
+    var key = "custom:" + name.trim().toLowerCase() + ":" + priceCents;
+    if(!state.customInfo[key]){
+      state.customInfo[key] = { name: name.trim(), price: priceCents };
+    }
+    state.cart[key] = (state.cart[key] || 0) + 1;
     render();
   }
 
@@ -401,14 +457,14 @@
     } else {
       orderList.innerHTML = "";
       ids.forEach(function(id){
-        var item = MENU_MAP[id];
+        var info = getItemInfo(id);
         var qty = state.cart[id];
-        var unit = priceOf(item);
+        var unit = info.price;
         var row = document.createElement("div");
         row.className = "row";
         row.innerHTML =
           '<div style="flex:1">' +
-            '<div class="rname">' + item.name + '</div>' +
+            '<div class="rname">' + info.name + (info.custom ? ' <span class="badge away" style="margin-left:4px">Custom</span>' : '') + '</div>' +
             '<div class="rmeta">' + fmt(unit) + ' each</div>' +
           '</div>' +
           '<div class="rstep">' +
@@ -446,6 +502,7 @@
 
   function resetOrder(){
     state.cart = {};
+    state.customInfo = {};
     state.customerType = "public";
     state.dining = "here";
     render();
@@ -466,8 +523,8 @@
     var total = subtotal + surcharge;
 
     var items = Object.keys(state.cart).map(function(id){
-      var item = MENU_MAP[id];
-      return { name:item.name, qty:state.cart[id], unit:priceOf(item) };
+      var info = getItemInfo(id);
+      return { name:info.name, qty:state.cart[id], unit:info.price };
     });
 
     var record = {
@@ -576,6 +633,50 @@
     confirmModal("Clear the daily log?", "This cannot be undone.", function(){
       saveLog([]);
       renderLog();
+    });
+  });
+
+  function openCustomModal(){
+    document.getElementById("customNameInput").value = "";
+    document.getElementById("customPriceInput").value = "";
+    document.getElementById("customError").style.display = "none";
+    document.getElementById("customOverlay").classList.add("show");
+    document.getElementById("customNameInput").focus();
+  }
+  function closeCustomModal(){
+    document.getElementById("customOverlay").classList.remove("show");
+  }
+  function submitCustomItem(){
+    var nameInput = document.getElementById("customNameInput");
+    var priceInput = document.getElementById("customPriceInput");
+    var errorEl = document.getElementById("customError");
+    var name = nameInput.value.trim();
+    var priceDollars = parseFloat(priceInput.value);
+
+    if(!name){
+      errorEl.textContent = "Please enter an item name.";
+      errorEl.style.display = "block";
+      nameInput.focus();
+      return;
+    }
+    if(!(priceDollars > 0)){
+      errorEl.textContent = "Please enter a price greater than $0.";
+      errorEl.style.display = "block";
+      priceInput.focus();
+      return;
+    }
+
+    addCustomItem(name, Math.round(priceDollars * 100));
+    closeCustomModal();
+    showToast("Added: " + name);
+  }
+
+  document.getElementById("customItemBtn").addEventListener("click", openCustomModal);
+  document.getElementById("customCancelBtn").addEventListener("click", closeCustomModal);
+  document.getElementById("customAddBtn").addEventListener("click", submitCustomItem);
+  ["customNameInput","customPriceInput"].forEach(function(id){
+    document.getElementById(id).addEventListener("keydown", function(e){
+      if(e.key === "Enter") submitCustomItem();
     });
   });
 
