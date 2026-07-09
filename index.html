@@ -125,6 +125,7 @@
   .badge.sutd{ background:var(--sutd-soft); color:var(--sutd); }
   .badge.here{ background:#dcfce7; color:var(--good-dark); }
   .badge.away{ background:var(--accent-soft); color:var(--accent-dark); }
+  .badge.unset{ background:#fee2e2; color:var(--bad); border:1px dashed var(--bad); }
 
   #orderList{ flex:1 1 auto; overflow-y:auto; padding:8px 14px; -webkit-overflow-scrolling:touch; }
   .empty{ color:var(--muted); text-align:center; padding:40px 10px; font-size:15px; }
@@ -342,7 +343,7 @@
     MENU[cat].forEach(function(item){ MENU_MAP[item.id] = item; });
   });
 
-  var state = { customerType:"public", dining:"here", cart:{}, customInfo:{} };
+  var state = { customerType:null, dining:null, cart:{}, customInfo:{} };
 
   function fmt(cents){ return "$" + (cents/100).toFixed(2); }
   function priceOf(item){ return state.customerType === "sutd" ? item.sutd : item.pub; }
@@ -443,12 +444,22 @@
     });
 
     var badgeType = document.getElementById("badgeType");
-    badgeType.textContent = state.customerType === "sutd" ? "SUTD" : "Public";
-    badgeType.className = "badge " + (state.customerType === "sutd" ? "sutd" : "pub");
+    if(state.customerType === null){
+      badgeType.textContent = "Select Public/SUTD";
+      badgeType.className = "badge unset";
+    } else {
+      badgeType.textContent = state.customerType === "sutd" ? "SUTD" : "Public";
+      badgeType.className = "badge " + (state.customerType === "sutd" ? "sutd" : "pub");
+    }
 
     var badgeDine = document.getElementById("badgeDine");
-    badgeDine.textContent = state.dining === "takeaway" ? "Take Away" : "Here";
-    badgeDine.className = "badge " + (state.dining === "takeaway" ? "away" : "here");
+    if(state.dining === null){
+      badgeDine.textContent = "Select Here/Take Away";
+      badgeDine.className = "badge unset";
+    } else {
+      badgeDine.textContent = state.dining === "takeaway" ? "Take Away" : "Here";
+      badgeDine.className = "badge " + (state.dining === "takeaway" ? "away" : "here");
+    }
 
     var orderList = document.getElementById("orderList");
     var ids = Object.keys(state.cart);
@@ -496,15 +507,16 @@
     document.getElementById("tTotal").textContent = fmt(total);
 
     var hasItems = ids.length > 0;
+    var selectionMade = state.customerType !== null && state.dining !== null;
     document.getElementById("voidBtn").disabled = !hasItems;
-    document.getElementById("completeBtn").disabled = !hasItems;
+    document.getElementById("completeBtn").disabled = !(hasItems && selectionMade);
   }
 
   function resetOrder(){
     state.cart = {};
     state.customInfo = {};
-    state.customerType = "public";
-    state.dining = "here";
+    state.customerType = null;
+    state.dining = null;
     render();
   }
 
@@ -518,6 +530,10 @@
 
   function completeOrder(){
     if(cartCount() === 0) return;
+    if(state.customerType === null || state.dining === null){
+      showToast("Select Public/SUTD and Here/Take Away first");
+      return;
+    }
     var subtotal = computeSubtotal();
     var surcharge = computeSurcharge(subtotal);
     var total = subtotal + surcharge;
