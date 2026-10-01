@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Sales Entry</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Daily Sales">
+<meta name="theme-color" content="#7c2d12">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23c2410c'/%3E%3Ctext x='90' y='128' font-size='112' font-family='Arial, sans-serif' font-weight='700' fill='white' text-anchor='middle'%3E%24%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f4ede4; --panel:#ffffff; --ink:#2a1d14; --muted:#8a7566; --line:#e6dccd;
+    --accent:#c2410c; --accent-dark:#9a3412; --good:#15803d; --bad:#b91c1c; --pub:#7c2d12;
+  }
+  *{ box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  html,body{
+    margin:0; padding:0; min-height:100%; background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button{ font-family:inherit; touch-action:manipulation; }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; background:var(--pub); color:#fff;
+    padding-top:calc(16px + env(safe-area-inset-top));
+  }
+  header h1{ margin:0; font-size:20px; }
+  .headBtn{
+    background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
+    border-radius:10px; padding:9px 14px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none;
+  }
+  #formWrap{ max-width:480px; margin:0 auto; padding:20px; }
+  .card{ background:var(--panel); border-radius:16px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  .formLabel{ display:block; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:6px; margin-top:16px; }
+  .formLabel:first-child{ margin-top:0; }
+  .formInput{
+    width:100%; padding:14px; border:2px solid var(--line); border-radius:10px; font-size:17px;
+    box-sizing:border-box; font-family:inherit; -webkit-user-select:text; user-select:text;
+  }
+  .formInput:focus{ outline:none; border-color:var(--accent); }
+  .checkRow{ display:flex; align-items:center; gap:10px; margin-top:16px; padding:12px 14px; background:var(--bg); border-radius:10px; }
+  .checkRow input{ width:22px; height:22px; }
+  .checkRow label{ font-size:15px; font-weight:600; }
+  .totalPreview{ margin-top:18px; padding:14px; background:var(--bg); border-radius:10px; display:flex; justify-content:space-between; align-items:center; }
+  .totalPreview .label{ font-size:13px; color:var(--muted); font-weight:700; text-transform:uppercase; }
+  .totalPreview .value{ font-size:24px; font-weight:800; }
+  .submitBtn{
+    width:100%; margin-top:20px; padding:16px; border:none; border-radius:12px;
+    background:var(--good); color:#fff; font-size:17px; font-weight:800; cursor:pointer;
+  }
+  .submitBtn:active{ opacity:0.8; }
+  .submitBtn:disabled{ opacity:0.5; }
+  #msg{ margin-top:14px; font-size:14px; text-align:center; min-height:20px; }
+  #msg.success{ color:var(--good); font-weight:700; }
+  #msg.error{ color:var(--bad); font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Daily Sales Entry</h1>
+  <a class="headBtn" href="index.html">Cashier</a>
+</header>
+
+<div id="formWrap">
+  <div class="card">
+    <label class="formLabel" for="dateInput">Date</label>
+    <input type="date" id="dateInput" class="formInput">
+
+    <div class="checkRow">
+      <input type="checkbox" id="closedInput">
+      <label for="closedInput">Closed today (no sales)</label>
+    </div>
+
+    <label class="formLabel" for="payNowInput">PayNow ($)</label>
+    <input type="number" id="payNowInput" class="formInput" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+
+    <label class="formLabel" for="cashInput">Cash ($)</label>
+    <input type="number" id="cashInput" class="formInput" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+
+    <label class="formLabel" for="remarksInput">Remarks (optional)</label>
+    <input type="text" id="remarksInput" class="formInput" placeholder="e.g. rain, sold out early" maxlength="200">
+
+    <div class="totalPreview">
+      <span class="label">Total</span>
+      <span class="value" id="totalPreview">$0.00</span>
+    </div>
+
+    <button class="submitBtn" id="submitBtn">Save Day</button>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var SYNC_ENDPOINT = "https://script.google.com/macros/s/AKfycbxuqzXU418CadzlueS0xqwL_6Cl05CRZxsma-DKB9SWhJiht881rDb9lftRPlkyhq7NIA/exec";
+
+  var dateInput = document.getElementById("dateInput");
+  var closedInput = document.getElementById("closedInput");
+  var payNowInput = document.getElementById("payNowInput");
+  var cashInput = document.getElementById("cashInput");
+  var remarksInput = document.getElementById("remarksInput");
+  var totalPreview = document.getElementById("totalPreview");
+  var submitBtn = document.getElementById("submitBtn");
+  var msg = document.getElementById("msg");
+
+  function todayStr(){
+    var d = new Date();
+    var tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0, 10);
+  }
+  dateInput.value = todayStr();
+
+  function updateTotal(){
+    var payNow = parseFloat(payNowInput.value) || 0;
+    var cash = parseFloat(cashInput.value) || 0;
+    totalPreview.textContent = "$" + (payNow + cash).toFixed(2);
+  }
+  function updateClosedState(){
+    var closed = closedInput.checked;
+    payNowInput.disabled = closed;
+    cashInput.disabled = closed;
+    if(closed){
+      payNowInput.value = "0";
+      cashInput.value = "0";
+      updateTotal();
+    }
+  }
+
+  payNowInput.addEventListener("input", updateTotal);
+  cashInput.addEventListener("input", updateTotal);
+  closedInput.addEventListener("change", updateClosedState);
+
+  submitBtn.addEventListener("click", function(){
+    var date = dateInput.value;
+    if(!date){
+      showMsg("Please pick a date.", true);
+      return;
+    }
+    var closed = closedInput.checked;
+    var payNow = parseFloat(payNowInput.value) || 0;
+    var cash = parseFloat(cashInput.value) || 0;
+
+    if(!closed && payNowInput.value === "" && cashInput.value === ""){
+      showMsg("Enter PayNow and Cash, or mark the day Closed.", true);
+      return;
+    }
+
+    submitBtn.disabled = true;
+    showMsg("Saving...", false);
+
+    fetch(SYNC_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        type: "dailysales",
+        date: date,
+        payNow: payNow,
+        cash: cash,
+        closed: closed,
+        remarks: remarksInput.value.trim()
+      })
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        submitBtn.disabled = false;
+        if(data.ok){
+          showMsg("Saved " + date + " ($" + (payNow + cash).toFixed(2) + ")", false, true);
+        } else {
+          showMsg("Something went wrong saving. Try again.", true);
+        }
+      })
+      .catch(function(){
+        submitBtn.disabled = false;
+        showMsg("Could not save. Check your connection and try again.", true);
+      });
+  });
+
+  function showMsg(text, isError, isSuccess){
+    msg.textContent = text;
+    msg.className = isError ? "error" : (isSuccess ? "success" : "");
+  }
+
+  updateTotal();
+})();
+</script>
+</body>
+</html>

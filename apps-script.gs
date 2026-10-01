@@ -1,6 +1,20 @@
 function doPost(e) {
-  var sheet = getOrdersSheet();
   var data = JSON.parse(e.postData.contents);
+  if (data.type === "dailysales") {
+    return saveDailySales(data);
+  }
+  return saveOrder(data);
+}
+
+function doGet(e) {
+  if (e.parameter.source === "dailysales") {
+    return getDailySales();
+  }
+  return getOrders();
+}
+
+function saveOrder(data){
+  var sheet = getOrdersSheet();
   sheet.appendRow([
     new Date(data.time),
     data.customerType,
@@ -10,11 +24,10 @@ function doPost(e) {
     data.surcharge / 100,
     data.total / 100
   ]);
-  return ContentService.createTextOutput(JSON.stringify({ ok: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return jsonOutput({ ok: true });
 }
 
-function doGet(e) {
+function getOrders(){
   var sheet = getOrdersSheet();
   var rows = sheet.getDataRange().getValues();
   rows.shift();
@@ -31,8 +44,57 @@ function doGet(e) {
         total: Number(r[6]) || 0
       };
     });
-  return ContentService.createTextOutput(JSON.stringify({ orders: orders }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return jsonOutput({ orders: orders });
+}
+
+function saveDailySales(data){
+  var sheet = getDailySalesSheet();
+  var dateStr = data.date;
+  var dateObj = new Date(dateStr + "T00:00:00");
+  var day = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+  var payNow = Number(data.payNow) || 0;
+  var cash = Number(data.cash) || 0;
+  var closed = !!data.closed;
+  var remarks = data.remarks || "";
+
+  var values = sheet.getDataRange().getValues();
+  var rowIndex = -1;
+  for (var i = 1; i < values.length; i++) {
+    var existing = values[i][0];
+    var existingStr = existing instanceof Date ? Utilities.formatDate(existing, Session.getScriptTimeZone(), "yyyy-MM-dd") : existing;
+    if (existingStr === dateStr) { rowIndex = i + 1; break; }
+  }
+
+  var row = [dateObj, day, payNow, cash, closed ? "Closed" : "", remarks];
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+  return jsonOutput({ ok: true });
+}
+
+function getDailySales(){
+  var sheet = getDailySalesSheet();
+  var rows = sheet.getDataRange().getValues();
+  rows.shift();
+  var entries = rows
+    .filter(function(r){ return r[0]; })
+    .map(function(r){
+      return {
+        date: r[0] instanceof Date ? Utilities.formatDate(r[0], Session.getScriptTimeZone(), "yyyy-MM-dd") : r[0],
+        day: r[1],
+        payNow: Number(r[2]) || 0,
+        cash: Number(r[3]) || 0,
+        closed: r[4] === "Closed",
+        remarks: r[5] || ""
+      };
+    });
+  return jsonOutput({ entries: entries });
+}
+
+function jsonOutput(obj){
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function getOrdersSheet(){
@@ -41,6 +103,16 @@ function getOrdersSheet(){
   if(!sheet){
     sheet = ss.insertSheet("Orders");
     sheet.appendRow(["Time","Customer Type","Dining","Items","Subtotal","Surcharge","Total"]);
+  }
+  return sheet;
+}
+
+function getDailySalesSheet(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Daily Sales");
+  if(!sheet){
+    sheet = ss.insertSheet("Daily Sales");
+    sheet.appendRow(["Date","Day","PayNow","Cash","Closed","Remarks"]);
   }
   return sheet;
 }

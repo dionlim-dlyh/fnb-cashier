@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ULK Manager View</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Manager View">
+<meta name="theme-color" content="#7c2d12">
+<style>
+  :root{
+    --bg:#f4ede4; --panel:#ffffff; --ink:#2a1d14; --muted:#8a7566; --line:#e6dccd;
+    --accent:#c2410c; --accent-dark:#9a3412; --accent-soft:#fde8d8;
+    --good:#15803d; --bad:#b91c1c; --pub:#7c2d12;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom:40px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; background:var(--pub); color:#fff; gap:12px; flex-wrap:wrap;
+  }
+  header h1{ margin:0; font-size:20px; }
+  .headBtn{
+    background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
+    border-radius:10px; padding:9px 14px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  #status{ padding:8px 20px; font-size:13px; color:var(--muted); }
+  #content{ padding:0 20px; max-width:960px; margin:0 auto; }
+
+  .section{ background:var(--panel); border-radius:16px; padding:18px; margin:16px 0; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  .section h2{ margin:0 0 4px 0; font-size:16px; }
+  .section .subhead{ font-size:13px; color:var(--muted); margin-bottom:14px; }
+
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-bottom:14px; }
+  .card{ background:var(--bg); border-radius:12px; padding:14px; }
+  .card .label{ font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:700; }
+  .card .value{ font-size:22px; font-weight:800; margin-top:4px; }
+  .card .sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .card .value.pos{ color:var(--good); }
+  .card .value.neg{ color:var(--bad); }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:2px solid var(--line); }
+  td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  tr:last-child td{ border-bottom:none; }
+  tr.totalRow td{ font-weight:800; border-top:2px solid var(--line); }
+  .muted{ color:var(--muted); }
+  .badge{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px; background:var(--accent-soft); color:var(--accent-dark); white-space:nowrap; }
+
+  .empty{ text-align:center; color:var(--muted); padding:30px; }
+  .error{ background:#fee2e2; color:#991b1b; padding:14px 18px; border-radius:12px; margin:16px 0; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ULK Manager View</h1>
+  <button class="headBtn" id="refreshBtn">Refresh</button>
+</header>
+<div id="status">Loading...</div>
+<div id="content"></div>
+
+<script>
+(function(){
+  "use strict";
+  var SYNC_ENDPOINT = "https://script.google.com/macros/s/AKfycbxuqzXU418CadzlueS0xqwL_6Cl05CRZxsma-DKB9SWhJiht881rDb9lftRPlkyhq7NIA/exec";
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var WEEKDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+  function money(n){
+    if(n === undefined || n === null) return "–";
+    return "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+  }
+  function pct(n){
+    if(n === undefined || n === null || !isFinite(n)) return "–";
+    return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%";
+  }
+  function pctClass(n){
+    if(n === undefined || n === null || !isFinite(n)) return "";
+    return n >= 0 ? "pos" : "neg";
+  }
+  function pctPlain(n){
+    if(n === undefined || n === null || !isFinite(n)) return "–";
+    return (n * 100).toFixed(1) + "%";
+  }
+  function parseDate(str){
+    var parts = str.split("-");
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  }
+  function dateKey(d){
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function mondayOf(d){
+    var day = d.getDay();
+    var diff = (day === 0 ? -6 : 1) - day;
+    var m = new Date(d);
+    m.setDate(d.getDate() + diff);
+    m.setHours(0,0,0,0);
+    return m;
+  }
+  function addDays(d, n){
+    var r = new Date(d);
+    r.setDate(r.getDate() + n);
+    return r;
+  }
+  function fmtShort(d){
+    return d.toLocaleDateString([], { weekday:"short", month:"short", day:"numeric" });
+  }
+  function total(e){ return (e.payNow || 0) + (e.cash || 0); }
+
+  function card(label, value, sub, extraClass){
+    return '<div class="card"><div class="label">' + label + '</div>' +
+      '<div class="value' + (extraClass ? ' ' + extraClass : '') + '">' + value + '</div>' +
+      (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function buildWeekSummary(entries, weekStart){
+    var byDate = {};
+    entries.forEach(function(e){ byDate[e.date] = e; });
+    var days = [];
+    var revenue = 0, payNow = 0, cash = 0, daysOpen = 0;
+    var bestDay = null, bestTotal = -1;
+    for(var i = 0; i < 7; i++){
+      var d = addDays(weekStart, i);
+      var key = dateKey(d);
+      var e = byDate[key];
+      days.push({ date:d, entry:e });
+      if(e && !e.closed){
+        var t = total(e);
+        revenue += t; payNow += e.payNow; cash += e.cash; daysOpen++;
+        if(t > bestTotal){ bestTotal = t; bestDay = WEEKDAYS[i]; }
+      }
+    }
+    return { days:days, revenue:revenue, payNow:payNow, cash:cash, daysOpen:daysOpen, bestDay:bestDay };
+  }
+
+  function renderThisWeek(entries){
+    var now = new Date();
+    var thisMonday = mondayOf(now);
+    var lastMonday = addDays(thisMonday, -7);
+    var thisWeek = buildWeekSummary(entries, thisMonday);
+    var lastWeek = buildWeekSummary(entries, lastMonday);
+    var avgPerDay = thisWeek.daysOpen > 0 ? thisWeek.revenue / thisWeek.daysOpen : null;
+    var vsLastWeek = lastWeek.revenue > 0 ? (thisWeek.revenue - lastWeek.revenue) / lastWeek.revenue : null;
+
+    var html = "";
+    html += '<div class="section"><h2>This Week</h2>';
+    html += '<div class="subhead">' + fmtShort(thisMonday) + ' – ' + fmtShort(addDays(thisMonday,6)) + '</div>';
+
+    html += '<div class="cards">';
+    html += card("Week Revenue", money(thisWeek.revenue), "PayNow + Cash");
+    html += card("PayNow", money(thisWeek.payNow), "");
+    html += card("Cash", money(thisWeek.cash), "");
+    html += card("Days Open", thisWeek.daysOpen, "days with sales entered");
+    html += card("Avg / Day", avgPerDay === null ? "–" : money(avgPerDay), "");
+    html += '</div>';
+
+    html += '<div class="cards">';
+    html += card("vs Last Week", pct(vsLastWeek), "last week: " + money(lastWeek.revenue), pctClass(vsLastWeek));
+    html += card("Best Day", thisWeek.bestDay || "–", "");
+    html += '</div>';
+
+    html += '<table><thead><tr><th>Day</th><th>Date</th><th>PayNow</th><th>Cash</th><th>Total</th><th>Status</th></tr></thead><tbody>';
+    thisWeek.days.forEach(function(d, i){
+      var e = d.entry;
+      html += '<tr>' +
+        '<td>' + WEEKDAYS[i] + '</td>' +
+        '<td class="muted">' + d.date.toLocaleDateString([], {month:"short", day:"numeric"}) + '</td>' +
+        '<td>' + (e ? money(e.payNow) : '<span class="muted">–</span>') + '</td>' +
+        '<td>' + (e ? money(e.cash) : '<span class="muted">–</span>') + '</td>' +
+        '<td><strong>' + (e ? money(total(e)) : '<span class="muted">–</span>') + '</strong></td>' +
+        '<td>' + (e && e.closed ? '<span class="badge">Closed</span>' : (!e ? '<span class="badge">No data</span>' : '')) + '</td>' +
+        '</tr>';
+    });
+    html += '<tr class="totalRow"><td colspan="2">Total</td><td>' + money(thisWeek.payNow) + '</td><td>' + money(thisWeek.cash) + '</td><td>' + money(thisWeek.revenue) + '</td><td></td></tr>';
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function renderYearOverview(entries){
+    var year = new Date().getFullYear();
+    var yearEntries = entries.filter(function(e){ return parseDate(e.date).getFullYear() === year; });
+    var openEntries = yearEntries.filter(function(e){ return !e.closed; });
+
+    var totalRevenue = openEntries.reduce(function(s,e){ return s + total(e); }, 0);
+    var cashTotal = openEntries.reduce(function(s,e){ return s + e.cash; }, 0);
+    var daysOpen = openEntries.length;
+    var avgPerOpenDay = daysOpen > 0 ? totalRevenue / daysOpen : null;
+    var cashShare = totalRevenue > 0 ? cashTotal / totalRevenue : null;
+
+    var months = MONTHS.map(function(name, i){
+      var monthEntries = openEntries.filter(function(e){ return parseDate(e.date).getMonth() === i; });
+      if(monthEntries.length === 0) return { name:name, hasData:false };
+      var payNow = monthEntries.reduce(function(s,e){ return s + e.payNow; }, 0);
+      var cash = monthEntries.reduce(function(s,e){ return s + e.cash; }, 0);
+      var tot = payNow + cash;
+      return {
+        name:name, hasData:true, payNow:payNow, cash:cash, total:tot,
+        daysOpen: monthEntries.length, avgPerDay: tot / monthEntries.length,
+        cashPct: tot > 0 ? cash / tot : 0
+      };
+    });
+    var bestMonth = months.filter(function(m){ return m.hasData; }).sort(function(a,b){ return b.total - a.total; })[0];
+
+    var weekMap = {};
+    openEntries.forEach(function(e){
+      var wk = dateKey(mondayOf(parseDate(e.date)));
+      if(!weekMap[wk]) weekMap[wk] = { start:wk, revenue:0 };
+      weekMap[wk].revenue += total(e);
+    });
+    var weeks = Object.keys(weekMap).map(function(k){ return weekMap[k]; });
+    var avgPerWeek = weeks.length > 0 ? weeks.reduce(function(s,w){ return s + w.revenue; }, 0) / weeks.length : null;
+    var bestWeek = weeks.sort(function(a,b){ return b.revenue - a.revenue; })[0];
+
+    var bestDayEntry = openEntries.sort(function(a,b){ return total(b) - total(a); })[0];
+
+    var allDates = yearEntries.map(function(e){ return e.date; }).sort();
+    var dataGaps = 0;
+    if(allDates.length > 0){
+      var recorded = {};
+      yearEntries.forEach(function(e){ recorded[e.date] = true; });
+      var start = parseDate(allDates[0]);
+      var end = new Date();
+      end.setHours(0,0,0,0);
+      for(var d = new Date(start); d <= end; d = addDays(d, 1)){
+        if(!recorded[dateKey(d)]) dataGaps++;
+      }
+    }
+
+    var html = "";
+    html += '<div class="section"><h2>Year Overview</h2>';
+    html += '<div class="subhead">' + year + '</div>';
+
+    html += '<div class="cards">';
+    html += card("Total Revenue", money(totalRevenue), "PayNow + Cash");
+    html += card("Avg / Open Day", avgPerOpenDay === null ? "–" : money(avgPerOpenDay), "");
+    html += card("Days Open", daysOpen, "");
+    html += card("Best Month", bestMonth ? bestMonth.name : "–", bestMonth ? money(bestMonth.total) : "");
+    html += card("Cash Share", pctPlain(cashShare), "of total revenue");
+    html += '</div>';
+
+    html += '<div class="cards">';
+    html += card("Avg / Week", avgPerWeek === null ? "–" : money(avgPerWeek), "weeks with sales only");
+    html += card("Best Week", bestWeek ? money(bestWeek.revenue) : "–", bestWeek ? ("week of " + bestWeek.start) : "");
+    html += card("Best Single Day", bestDayEntry ? money(total(bestDayEntry)) : "–", bestDayEntry ? bestDayEntry.date : "");
+    html += card("Data Gaps", dataGaps, "days with no entry at all");
+    html += '</div>';
+
+    html += '<table><thead><tr><th>Month</th><th>PayNow</th><th>Cash</th><th>Total</th><th>Days Open</th><th>Avg/Day</th><th>Cash %</th></tr></thead><tbody>';
+    months.forEach(function(m){
+      html += '<tr>' +
+        '<td>' + m.name + '</td>' +
+        '<td>' + (m.hasData ? money(m.payNow) : '<span class="muted">–</span>') + '</td>' +
+        '<td>' + (m.hasData ? money(m.cash) : '<span class="muted">–</span>') + '</td>' +
+        '<td><strong>' + (m.hasData ? money(m.total) : '<span class="muted">–</span>') + '</strong></td>' +
+        '<td>' + (m.hasData ? m.daysOpen : '<span class="muted">–</span>') + '</td>' +
+        '<td>' + (m.hasData ? money(m.avgPerDay) : '<span class="muted">–</span>') + '</td>' +
+        '<td>' + (m.hasData ? pctPlain(m.cashPct) : '<span class="muted">–</span>') + '</td>' +
+        '</tr>';
+    });
+    html += '<tr class="totalRow"><td>' + year + '</td><td>' + money(openEntries.reduce(function(s,e){return s+e.payNow;},0)) + '</td><td>' + money(cashTotal) + '</td><td>' + money(totalRevenue) + '</td><td>' + daysOpen + '</td><td>' + (avgPerOpenDay===null?"–":money(avgPerOpenDay)) + '</td><td>' + pctPlain(cashShare) + '</td></tr>';
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function load(){
+    document.getElementById("status").textContent = "Loading...";
+    fetch(SYNC_ENDPOINT + "?source=dailysales")
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var entries = data.entries || [];
+        if(entries.length === 0){
+          document.getElementById("content").innerHTML = '<div class="empty">No daily sales entered yet. Use the Daily Sales Entry page to add today\'s totals.</div>';
+        } else {
+          document.getElementById("content").innerHTML = renderThisWeek(entries) + renderYearOverview(entries);
+        }
+        document.getElementById("status").textContent = "Last updated " + new Date().toLocaleTimeString();
+      })
+      .catch(function(err){
+        document.getElementById("status").textContent = "";
+        document.getElementById("content").innerHTML = '<div class="error">Could not load sales data: ' + err.message + '</div>';
+      });
+  }
+
+  document.getElementById("refreshBtn").addEventListener("click", load);
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

@@ -48,12 +48,12 @@
     padding:14px 20px; background:var(--pub); color:#fff; flex:0 0 auto;
   }
   header h1{ margin:0; font-size:20px; font-weight:700; letter-spacing:0.3px; }
-  #logBtn, #statsLink{
+  #logBtn, #statsLink, #dailySalesLink{
     background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
     border-radius:10px; padding:10px 16px; font-size:15px; font-weight:600; cursor:pointer;
     text-decoration:none; display:inline-flex; align-items:center;
   }
-  #logBtn:active, #statsLink:active{ background:rgba(255,255,255,0.3); }
+  #logBtn:active, #statsLink:active, #dailySalesLink:active{ background:rgba(255,255,255,0.3); }
   .headerBtns{ display:flex; gap:8px; }
 
   #main{ flex:1 1 auto; display:flex; min-height:0; }
@@ -197,6 +197,7 @@
   <header>
     <h1>F&amp;B Cashier</h1>
     <div class="headerBtns">
+      <a id="dailySalesLink" href="daily-sales.html">Daily Sales</a>
       <a id="statsLink" href="stats.html">Stats</a>
       <button id="logBtn">Daily Log</button>
     </div>
